@@ -5,7 +5,7 @@ import { name as packageName } from '@/../package.json'
 import { unnecessaryFilesList } from '@/constants'
 import type { VitePressConfig } from '@/internal-types'
 import { configureDevServer } from '@/plugin/dev-server'
-import { generateBundle, transform } from '@/plugin/hooks'
+import { processPages } from '@/plugin/processing'
 import type { LlmstxtSettings } from '@/types'
 import log from '@/utils/logger'
 
@@ -21,7 +21,7 @@ const PLUGIN_NAME = packageName
  * @see https://github.com/okineadev/vitepress-plugin-llms
  * @see https://llmstxt.org/
  */
-export function llmstxt(userSettings: LlmstxtSettings = {}): [Plugin, Plugin] {
+export function llmstxt(userSettings: LlmstxtSettings = {}): Plugin {
 	// Create a settings object with defaults explicitly merged
 	const settings: Omit<LlmstxtSettings, 'ignoreFiles' | 'workDir'> & {
 		ignoreFiles: string[]
@@ -48,73 +48,75 @@ export function llmstxt(userSettings: LlmstxtSettings = {}): [Plugin, Plugin] {
 	// Store the resolved Vite config
 	let config: VitePressConfig
 
-	// Set to store all markdown file paths
-	const mdFiles: Set<string> = new Set()
+	// Map to store final page HTML content
+	const pageContents = new Map<string, string>()
 
 	// Flag to identify which build we're in
 	let isSsrBuild = false
 
-	return [
-		{
-			enforce: 'pre',
-			name: `${PLUGIN_NAME}:llm-tags`,
+	return {
+		name: PLUGIN_NAME,
+		// Run after all other plugins
+		enforce: 'post',
 
-			/** Processes each Markdown file */
-			async transform(content, id) {
-				return transform(content, id, settings, mdFiles, config)
-			},
-		},
-		{
-			name: PLUGIN_NAME,
-			// Run after all other plugins
-			enforce: 'post',
+		/** Resolves the Vite configuration and sets up the working directory. */
+		configResolved(resolvedConfig) {
+			config = resolvedConfig as VitePressConfig
+			if (settings.workDir) {
+				settings.workDir = path.resolve(config.vitepress.srcDir, settings.workDir)
+			} else {
+				settings.workDir = path.resolve(config.vitepress.srcDir)
+			}
 
-			/** Resolves the Vite configuration and sets up the working directory. */
-			configResolved(resolvedConfig) {
-				config = resolvedConfig as VitePressConfig
-				if (settings.workDir) {
-					settings.workDir = path.resolve(config.vitepress.srcDir, settings.workDir)
-				} else {
-					settings.workDir = path.resolve(config.vitepress.srcDir)
+			if (settings.excludeUnnecessaryFiles) {
+				settings.excludeIndexPage && settings.ignoreFiles.push(...unnecessaryFilesList.indexPage)
+				settings.excludeBlog && settings.ignoreFiles.push(...unnecessaryFilesList.blogs)
+				settings.excludeTeam && settings.ignoreFiles.push(...unnecessaryFilesList.team)
+			}
+
+			// Detect if this is the SSR build
+			isSsrBuild = !!resolvedConfig.build?.ssr
+
+			log.info(
+				`${pc.bold(PLUGIN_NAME)} initialized ${isSsrBuild ? pc.dim('(SSR build)') : pc.dim('(client build)')} with workDir: ${pc.cyan(settings.workDir)}`,
+			)
+
+			// Inject Vitepress hooks
+			const vitepressConfig = config.vitepress
+			if (vitepressConfig) {
+				const originalTransformHtml = vitepressConfig.transformHtml
+				vitepressConfig.transformHtml = (code, id, { pageData }) => {
+					if (!isSsrBuild) {
+						// pageData.relativePath is the path to the page, e.g., 'index.md' or 'guide/getting-started.md'
+						// We use this as a key to store the final HTML content.
+						pageContents.set(pageData.relativePath, code)
+					}
+					if (originalTransformHtml) {
+						return originalTransformHtml(code, id, { pageData })
+					}
 				}
 
-				if (settings.excludeUnnecessaryFiles) {
-					settings.excludeIndexPage && settings.ignoreFiles.push(...unnecessaryFilesList.indexPage)
-					settings.excludeBlog && settings.ignoreFiles.push(...unnecessaryFilesList.blogs)
-					settings.excludeTeam && settings.ignoreFiles.push(...unnecessaryFilesList.team)
+				const originalBuildEnd = vitepressConfig.buildEnd
+				vitepressConfig.buildEnd = async (siteConfig) => {
+					if (!isSsrBuild) {
+						await processPages(pageContents, settings, config, isSsrBuild)
+					}
+					if (originalBuildEnd) {
+						await originalBuildEnd(siteConfig)
+					}
 				}
-
-				// Detect if this is the SSR build
-				isSsrBuild = !!resolvedConfig.build?.ssr
-
-				log.info(
-					`${pc.bold(PLUGIN_NAME)} initialized ${isSsrBuild ? pc.dim('(SSR build)') : pc.dim('(client build)')} with workDir: ${pc.cyan(settings.workDir)}`,
-				)
-			},
-
-			/** Configures the development server to handle `llms.txt` and markdown files for LLMs. */
-			async configureServer(server: ViteDevServer) {
-				await configureDevServer(server, config)
-			},
-
-			/**
-			 * Resets the collection of markdown files when the build starts.
-			 * This ensures we don't include stale data from previous builds.
-			 */
-			buildStart() {
-				mdFiles.clear()
-				log.info('Build started, file collection cleared')
-			},
-
-			/**
-			 * Runs only in the client build (not SSR) after completion.
-			 * This ensures the processing happens exactly once.
-			 */
-			async generateBundle(_options, bundle) {
-				await generateBundle(bundle, settings, config, mdFiles, isSsrBuild)
-			},
+			}
 		},
-	]
+
+		/** Configures the development server to handle `llms.txt` and markdown files for LLMs. */
+		async configureServer(server: ViteDevServer) {
+			await configureDevServer(server, config)
+		},
+
+		buildStart() {
+			pageContents.clear()
+		},
+	}
 }
 
 export default llmstxt
