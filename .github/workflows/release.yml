@@ -54,7 +54,7 @@ jobs:
         uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
 
       - name: 📦 Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun ci
 
       - name: 🤖 Setup GitHub Actions Bot
         uses: cli-stuff/setup-github-actions-bot@6f48e564efbb89283f4ec530312d3cfd23a95f58 # v0.1
@@ -78,6 +78,4 @@ jobs:
           bunx changelogithub@^13.16.0
 
       - name: 📦 Publish to NPM Registry
-        run: |
-          bunx npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
-          bunx npm publish --provenance --access public
+        run: bunx npm publish
