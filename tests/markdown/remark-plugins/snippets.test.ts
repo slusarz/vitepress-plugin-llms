@@ -164,7 +164,7 @@ After region`
 
 		const processor = remark().use(
 			remarkInclude({
-				srcDir: '/source/root',
+				srcDir: path.resolve('/source/root'),
 			}),
 		)
 
@@ -176,7 +176,7 @@ After region`
 
 		// Check that the path was resolved from srcDir
 		expect(mockReadFileSync).toHaveBeenCalledWith(
-			expect.stringContaining('/source/root/config/file.md'),
+			expect.stringMatching(path.resolve('/source/root/config/file.md')),
 			'utf-8',
 		)
 	})
