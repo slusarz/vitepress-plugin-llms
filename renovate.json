@@ -15,8 +15,12 @@
 			"groupName": "github-actions",
 			"commitMessagePrefix": "chore(actions):",
 			"labels": ["🔄 workflows"]
+		},
+		{
+			"matchPackageNames": ["@types/node", "bun-types", "vitepress"],
+			"enabled": false
 		}
 	],
-	"schedule": ["monthly"],
-	"prConcurrentLimit": 2
+
+	"schedule": ["monthly"]
 }
