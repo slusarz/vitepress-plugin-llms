@@ -16,7 +16,9 @@
 	"linter": {
 		"rules": {
 			"complexity": {
-				"noBannedTypes": "warn"
+				"noBannedTypes": "warn",
+				// Disabled because `TS4111` - https://typescriptlang.org/tsconfig/#noPropertyAccessFromIndexSignature
+				"useLiteralKeys": "off"
 			},
 			"correctness": {
 				"useParseIntRadix": "off"
