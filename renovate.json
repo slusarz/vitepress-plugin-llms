@@ -11,15 +11,29 @@
 	"labels": ["📦 dependencies"],
 	"packageRules": [
 		{
-			"matchUpdateTypes": ["patch"],
-			"enabled": false,
-			"matchPackageNames": ["*"]
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["dependencies"],
+			"groupName": "deps",
+			"commitMessagePrefix": "chore(deps):",
+			"labels": ["📦 dependencies"]
+		},
+		{
+			"matchManagers": ["npm"],
+			"matchDepTypes": ["devDependencies"],
+			"groupName": "deps-dev",
+			"commitMessagePrefix": "chore(deps-dev):",
+			"labels": ["📦 dependencies"]
 		},
 		{
 			"matchManagers": ["github-actions"],
 			"groupName": "github-actions",
 			"commitMessagePrefix": "chore(actions):",
 			"labels": ["🔄 workflows"]
+		},
+		{
+			"matchUpdateTypes": ["patch"],
+			"enabled": false,
+			"matchPackageNames": ["*"]
 		},
 		{
 			"matchPackageNames": ["@types/node", "bun-types", "vitepress"],
